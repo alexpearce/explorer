@@ -51,6 +51,7 @@ mod atoms {
         calendar_iso_module = "Elixir.Calendar.ISO",
         date_module = "Elixir.Date",
         datetime_module = "Elixir.DateTime",
+        decimal_module = "Elixir.Decimal",
         duration_module = "Elixir.Explorer.Duration",
         naive_datetime_module = "Elixir.NaiveDateTime",
         time_module = "Elixir.Time",
@@ -73,6 +74,9 @@ mod atoms {
         time_zone,
         utc_offset,
         zone_abbr,
+        coef,
+        exp,
+        sign,
     }
 }
 

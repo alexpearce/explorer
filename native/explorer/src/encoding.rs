@@ -9,8 +9,9 @@ use chrono_tz::OffsetName;
 use chrono_tz::Tz;
 
 use crate::atoms::{
-    self, calendar, day, hour, infinity, microsecond, millisecond, minute, month, nan, nanosecond,
-    neg_infinity, precision, second, std_offset, time_zone, utc_offset, value, year, zone_abbr,
+    self, calendar, coef, day, exp, hour, infinity, microsecond, millisecond, minute, month, nan,
+    nanosecond, neg_infinity, precision, second, sign, std_offset, time_zone, utc_offset, value,
+    year, zone_abbr,
 };
 use crate::datatypes::{
     days_to_date, time64ns_to_time, timestamp_to_datetime, ExSeries, ExSeriesRef,
@@ -645,6 +646,60 @@ macro_rules! series_to_iovec {
     }};
 }
 
+// Here we build the Decimal struct manually, as it's much faster than using Decimal NifStruct
+// This is because we already have the keys (we know this at compile time), and the types,
+// so we can build the struct directly.
+#[inline]
+fn decimal_struct_keys(env: Env) -> [NIF_TERM; 4] {
+    return [
+        atom::__struct__().encode(env).as_c_arg(),
+        coef().encode(env).as_c_arg(),
+        exp().encode(env).as_c_arg(),
+        sign().encode(env).as_c_arg(),
+    ];
+}
+
+macro_rules! unsafe_encode_decimal {
+    ($v: ident, $decimal_struct_keys: ident, $decimal_module: ident, $decimal_scale: ident, $env: ident) => {{
+        let coef = $v.abs();
+        let sign = $v.signum();
+        let exp = -($decimal_scale as isize);
+        unsafe {
+            Term::new(
+                $env,
+                map::make_map_from_arrays(
+                    $env.as_c_arg(),
+                    $decimal_struct_keys,
+                    &[
+                        $decimal_module,
+                        coef.encode($env).as_c_arg(),
+                        exp.encode($env).as_c_arg(),
+                        sign.encode($env).as_c_arg(),
+                    ],
+                )
+                .unwrap(),
+            )
+        }
+    }};
+}
+
+#[inline]
+fn decimal_series_to_list<'b>(
+    s: &Series,
+    scale: usize,
+    env: Env<'b>,
+) -> Result<Term<'b>, ExplorerError> {
+    let decimal_struct_keys = &decimal_struct_keys(env);
+    let decimal_module = atoms::decimal_module().encode(env).as_c_arg();
+
+    Ok(unsafe_iterator_series_to_list!(
+        env,
+        s.decimal()?.into_iter().map(|option| option
+            .map(|v| unsafe_encode_decimal!(v, decimal_struct_keys, decimal_module, scale, env))
+            .encode(env))
+    ))
+}
+
 // API
 
 pub fn resource_term_from_value<'b>(
@@ -737,6 +792,9 @@ pub fn list_from_series(s: ExSeries, env: Env) -> Result<Term, ExplorerError> {
         DataType::Datetime(time_unit, None) => naive_datetime_series_to_list(&s, *time_unit, env),
         DataType::Datetime(time_unit, Some(time_zone)) => {
             datetime_series_to_list(&s, *time_unit, time_zone.clone().to_string(), env)
+        }
+        DataType::Decimal(_precision, scale) => {
+            decimal_series_to_list(&s, scale.expect("unexpected null scale precision"), env)
         }
         DataType::Duration(time_unit) => duration_series_to_list(&s, *time_unit, env),
         DataType::Binary => generic_binary_series_to_list(&s.resource, &s, env),

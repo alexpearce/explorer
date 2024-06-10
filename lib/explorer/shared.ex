@@ -78,6 +78,7 @@ defmodule Explorer.Shared do
     do: dtype
 
   def normalise_dtype(dtype) when dtype in @scalar_types, do: dtype
+  def normalise_dtype({:decimal, _, _} = dtype), do: dtype
   def normalise_dtype(dtype) when dtype in [:float, :f64], do: {:f, 64}
   def normalise_dtype(dtype) when dtype in [:integer, :s64], do: {:s, 64}
   def normalise_dtype(:f32), do: {:f, 32}
@@ -547,6 +548,7 @@ defmodule Explorer.Shared do
   """
   def dtype_to_string({:naive_datetime, p}), do: "naive_datetime[#{precision_string(p)}]"
   def dtype_to_string({:datetime, p, tz}), do: "datetime[#{precision_string(p)}, #{tz}]"
+  def dtype_to_string({:decimal, p, s}), do: "decimal[#{p}, #{s}]"
   def dtype_to_string({:duration, p}), do: "duration[#{precision_string(p)}]"
   def dtype_to_string({:list, dtype}), do: "list[" <> dtype_to_string(dtype) <> "]"
   def dtype_to_string({:struct, fields}), do: "struct[#{length(fields)}]"

@@ -57,6 +57,7 @@ pub enum ExSeriesDtype {
     Boolean,
     Category,
     Date,
+    Decimal(usize, usize),
     F(u8),
     S(u8),
     U(u8),
@@ -79,6 +80,10 @@ impl TryFrom<&DataType> for ExSeriesDtype {
             DataType::Boolean => Ok(ExSeriesDtype::Boolean),
             DataType::Categorical(_, _) => Ok(ExSeriesDtype::Category),
             DataType::Date => Ok(ExSeriesDtype::Date),
+            DataType::Decimal(precision, scale) => Ok(ExSeriesDtype::Decimal(
+                precision.expect("unexpected null decimal precision"),
+                scale.expect("unexpected null decimal scale"),
+            )),
             DataType::Float64 => Ok(ExSeriesDtype::F(64)),
             DataType::Float32 => Ok(ExSeriesDtype::F(32)),
             DataType::Int8 => Ok(ExSeriesDtype::S(8)),
@@ -133,6 +138,9 @@ impl TryFrom<&ExSeriesDtype> for DataType {
                 Ok(DataType::Categorical(None, CategoricalOrdering::default()))
             }
             ExSeriesDtype::Date => Ok(DataType::Date),
+            ExSeriesDtype::Decimal(scale, precision) => {
+                Ok(DataType::Decimal(Some(*scale), Some(*precision)))
+            }
             ExSeriesDtype::F(64) => Ok(DataType::Float64),
             ExSeriesDtype::F(32) => Ok(DataType::Float32),
             ExSeriesDtype::F(size) => Err(ExplorerError::Other(format!(
